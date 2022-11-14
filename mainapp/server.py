@@ -4,21 +4,24 @@ import select
 import socket
 import sys
 
-from common.variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, TIME,\
-    PRESENCE, MESSAGE, EXIT, MESSAGE_TEXT, USER, ERROR, DEFAULT_PORT, DEFAULT_IP_ADDRESS,\
-    SENDER, DESTINATION
-from common.utils import get_message, send_message, get_message_dict
+from common.variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, TIME, \
+    PRESENCE, MESSAGE, EXIT, MESSAGE_TEXT, USER, ERROR, DEFAULT_IP_ADDRESS, \
+    SENDER, DESTINATION, DEFAULT_PORT
+from common.utils import get_message, send_message
 import logs.server_log_config
 from common.decorators import Log
+from common.metaclass import ServerVerifier
+from common.descriptors import CheckPort
 
 server_log = logging.getLogger('server')
 
 
-class Server:
-    def __init__(self):
-        self.listen_port = DEFAULT_PORT
-        self.listen_address = DEFAULT_IP_ADDRESS
+class Server(metaclass=ServerVerifier):
+    listen_port = CheckPort()
 
+    def __init__(self):
+        self.listen_address = DEFAULT_IP_ADDRESS
+        self.listen_port = 0
         self.clients_list = []  # Client sockets list
         self.clients_names = dict()  # Client names with sockets {client_name: client_socket}
         self.messages_list = []  # Messages from all clients

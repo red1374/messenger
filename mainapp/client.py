@@ -1,4 +1,3 @@
-"""Программа-клиент"""
 import logging
 import sys
 import socket
@@ -6,16 +5,20 @@ import threading
 import time
 from common.variables import PRESENCE, TIME, USER, ACCOUNT_NAME, EXIT, DESTINATION, SENDER, \
     RESPONSE, ERROR, DEFAULT_IP_ADDRESS, DEFAULT_PORT, MESSAGE, ACTION, MESSAGE_TEXT
-from common.utils import get_message, send_message, get_params, get_message_dict
+from common.utils import get_message, send_message, get_params
 from common.decorators import Log
 
 import logs.client_log_config
-from errors import ReqFieldMissingError, ServerError, NonDictInputError
+from errors import ReqFieldMissingError, ServerError
+
+from common.metaclass import ClientVerifier
 
 client_log = logging.getLogger('client')
 
 
-class Client:
+class Client(metaclass=ClientVerifier):
+    # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
     def __init__(self):
         self.server_port = DEFAULT_PORT
         self.server_address = DEFAULT_IP_ADDRESS

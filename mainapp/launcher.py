@@ -40,9 +40,7 @@ while True:
         for i in range(CLIENTS_COUNT):
             process_params['n'] = f'test_{i}'
             start_process('client', params=process_params, process_list=process_list)
-        print(process_list)
     elif ACTION == 'x':
-
         while process_list:
             process = process_list.pop()
             process.kill()
