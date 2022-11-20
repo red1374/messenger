@@ -1,8 +1,14 @@
 """Программа-сервер"""
 import logging
+import os
 import select
 import socket
 import sys
+import threading
+
+sys.path.append(os.path.join(os.getcwd(), '..'))
+
+from common.db import Storage
 
 from common.variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, TIME, \
     PRESENCE, MESSAGE, EXIT, MESSAGE_TEXT, USER, ERROR, DEFAULT_IP_ADDRESS, \
@@ -16,15 +22,19 @@ from common.descriptors import CheckPort
 server_log = logging.getLogger('server')
 
 
-class Server(metaclass=ServerVerifier):
+class Server(threading.Thread, metaclass=ServerVerifier):
     listen_port = CheckPort()
 
-    def __init__(self):
+    def __init__(self, db):
         self.listen_address = DEFAULT_IP_ADDRESS
         self.listen_port = 0
         self.clients_list = []  # Client sockets list
         self.clients_names = dict()  # Client names with sockets {client_name: client_socket}
         self.messages_list = []  # Messages from all clients
+
+        self.db = db
+
+        super().__init__()
 
     @Log
     def process_client_message(self, message, client):
@@ -43,6 +53,11 @@ class Server(metaclass=ServerVerifier):
                 if message[USER][ACCOUNT_NAME] not in self.clients_names.keys():
                     # Add new client with unique name to clients names list
                     self.clients_names[message[USER][ACCOUNT_NAME]] = client
+
+                    # Add information about new client to db
+                    client_ip, client_port = client.getpeername()
+                    self.db.user_login(message[USER][ACCOUNT_NAME], client_ip, client_port)
+
                     send_message(client, {RESPONSE: 200})
                     return True
                 else:
@@ -64,6 +79,8 @@ class Server(metaclass=ServerVerifier):
                 self.clients_list.remove(self.clients_names[message[ACCOUNT_NAME]])
                 self.clients_names[message[ACCOUNT_NAME]].close()
                 del self.clients_names[message[ACCOUNT_NAME]]
+
+                self.db.user_logout(message[ACCOUNT_NAME])
                 return True
 
         # Send Bad request status to a client
@@ -96,6 +113,7 @@ class Server(metaclass=ServerVerifier):
     def run(self):
         """
         Load command line parameters to start server. Set default values if parameters are empty or wrong
+        Override default Thread method "run" and starts in a thread automatically
         """
         try:
             if '-p' in sys.argv:
@@ -134,7 +152,8 @@ class Server(metaclass=ServerVerifier):
                 try:
                     client_socket, client_address = server_sock.accept()
                 except OSError as err:
-                    print(err.errno)  # The error number returns None because it's just a timeout
+                    # The error number returns None because it's just a timeout
+                    # print(err.errno)
                     pass
                 else:
                     server_log.info(f'New client connected from \'{client_address}\'')
@@ -177,6 +196,66 @@ class Server(metaclass=ServerVerifier):
                     self.messages_list.clear()
 
 
+def show_interface():
+    """ Show server options menu """
+    print('Select option:')
+    print('\tu - get users list')
+    print('\tc - get connected users list')
+    print('\th - get users login history')
+    print('\texit - stop server')
+    print('\thelp - show options menu')
+
+
+def main():
+    # Create database object
+    db = Storage()
+
+    # Start server background process
+    server_obj = Server(db)
+    server_obj.daemon = True
+    server_obj.start()
+
+    # Show server options menu
+    show_interface()
+
+    while True:
+        option = input('Enter a command option: \n')
+
+        if option == 'exit':
+            break
+        elif option == 'help':
+            show_interface()
+        elif option == 'h':
+            # -- Get login history for select user all for all users ----
+            username = input('Enter user name to get his login history or enter for all users:\n')
+            users = db.login_history(username)
+
+            if users:
+                for user in users:
+                    print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
+            else:
+                print('No login history found')
+        elif option == 'c':
+            # -- Get connected users list -------------------------------
+            users = db.active_users_list()
+
+            if users:
+                for user in users:
+                    print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
+            else:
+                print('No connected users found')
+        elif option == 'u':
+            # -- Get registered users list -------------------------------
+            users = db.users_list()
+
+            if users:
+                for user in users:
+                    print(f'User "{user[0]}" last logged in at {user[1]}')
+            else:
+                print('No users found')
+        else:
+            print('Command not found. Try again or type help to get a menu')
+
+
 if __name__ == '__main__':
-    server_obj = Server()
-    server_obj.run()
+    main()

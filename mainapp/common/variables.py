@@ -2,6 +2,8 @@
 import logging
 
 # Порт по умолчанию для сетевого взаимодействия
+import os.path
+
 DEFAULT_PORT = 7777
 # IP адрес по умолчанию для подключения клиента
 DEFAULT_IP_ADDRESS = '127.0.0.1'
@@ -29,3 +31,6 @@ ERROR = 'error'
 MESSAGE = 'message'
 MESSAGE_TEXT = 'text'
 EXIT = 'exit'
+
+# БД
+SERVER_DATABASE = os.path.join('sqlite:///', 'db.sqlite')
