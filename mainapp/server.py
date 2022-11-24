@@ -1,10 +1,16 @@
 """Программа-сервер"""
+import configparser
 import logging
 import os
 import select
 import socket
 import sys
 import threading
+
+from PyQt5.QtCore import QTimer
+from PyQt5.QtWidgets import QApplication, QMessageBox
+
+from mainapp.server_gui import MainWindow, get_active_users_model, HistoryWindow, get_stat_model, ConfigWindow
 
 sys.path.append(os.path.join(os.getcwd(), '..'))
 
@@ -13,21 +19,26 @@ from common.db import Storage
 from common.variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, TIME, \
     PRESENCE, MESSAGE, EXIT, MESSAGE_TEXT, USER, ERROR, DEFAULT_IP_ADDRESS, \
     SENDER, DESTINATION, DEFAULT_PORT
-from common.utils import get_message, send_message
-import logs.server_log_config
+from common.utils import get_message, send_message, get_params
+
 from common.decorators import Log
 from common.metaclass import ServerVerifier
 from common.descriptors import CheckPort
 
 server_log = logging.getLogger('server')
 
+# Flag, said that new client was connected
+new_connection = False
+conflag_lock = threading.Lock()
+
 
 class Server(threading.Thread, metaclass=ServerVerifier):
     listen_port = CheckPort()
 
-    def __init__(self, db):
-        self.listen_address = DEFAULT_IP_ADDRESS
-        self.listen_port = 0
+    def __init__(self, db, address, port):
+        self.listen_address = address
+        self.listen_port = port
+
         self.clients_list = []  # Client sockets list
         self.clients_names = dict()  # Client names with sockets {client_name: client_socket}
         self.messages_list = []  # Messages from all clients
@@ -45,6 +56,8 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         :param client: client socket object
         :return:
         """
+        global new_connection
+
         server_log.debug(f'Client message processing : {message}')
 
         if ACTION in message and message[ACTION] in [PRESENCE, MESSAGE, EXIT] and TIME in message:
@@ -59,6 +72,8 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                     self.db.user_login(message[USER][ACCOUNT_NAME], client_ip, client_port)
 
                     send_message(client, {RESPONSE: 200})
+                    with conflag_lock:
+                        new_connection = True
                     return True
                 else:
                     # Client with this account name is already exists
@@ -81,6 +96,10 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                 del self.clients_names[message[ACCOUNT_NAME]]
 
                 self.db.user_logout(message[ACCOUNT_NAME])
+
+                with conflag_lock:
+                    new_connection = True
+
                 return True
 
         # Send Bad request status to a client
@@ -102,6 +121,8 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         if message[DESTINATION] in self.clients_names and self.clients_names[message[DESTINATION]] in listen_socks:
             # Send message to the client with DESTINATION account name
             send_message(self.clients_names[message[DESTINATION]], message)
+
+            self.db.process_message(message[SENDER], message[DESTINATION])
             server_log.info(f'Message send to user {message[DESTINATION]} from user {message[SENDER]}')
         elif message[DESTINATION] in self.clients_names and \
                 self.clients_names[message[DESTINATION]] not in listen_socks:
@@ -116,8 +137,6 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         Override default Thread method "run" and starts in a thread automatically
         """
         try:
-            if '-p' in sys.argv:
-                self.listen_port = int(sys.argv[sys.argv.index('-p') + 1])
             if self.listen_port < 1024 or self.listen_port > 65535:
                 raise ValueError
         except IndexError:
@@ -128,13 +147,6 @@ class Server(threading.Thread, metaclass=ServerVerifier):
             sys.exit(1)
 
         # Set ip address to listen
-        try:
-            if '-a' in sys.argv:
-                self.listen_address = sys.argv[sys.argv.index('-a') + 1]
-        except IndexError:
-            server_log.critical(f'Insert listen address after -\'a\' parameter')
-            sys.exit(1)
-
         server_log.info(f'Server started at {self.listen_address}:{self.listen_port}')
 
         # Prepare server socket
@@ -173,7 +185,8 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                 if recv_data_lst:
                     for client_with_message in recv_data_lst:
                         try:
-                            server_log.info(f'Creating server response message for client {client_with_message.getpeername()}')
+                            server_log.info(
+                                f'Creating server response message for client {client_with_message.getpeername()}')
                             self.process_client_message(self, get_message(client_with_message), client_with_message)
                         except ValueError as value_error:
                             server_log.error(f'Client response message error.')
@@ -207,54 +220,177 @@ def show_interface():
 
 
 def main():
+    # Load server settings file
+    config = configparser.ConfigParser()
+
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    config.read(f'{dir_path}/server.ini')
+
+    if 'SETTINGS' not in config:
+        config['SETTINGS'] = {}
+        config['SETTINGS'] = {
+            'Database_path': '',
+            'Database_file': '',
+            'Default_port': '',
+            'Listen_Address': '',
+        }
+    print(config['SETTINGS']['Default_port'], type(config['SETTINGS']['Default_port']))
+    f = input()
+    # Load parameters from command line or setting up a default values if config is empty
+    params = get_params()
+    try:
+        listen_port = params['p']
+    except KeyError:
+        try:
+            listen_port = config['SETTINGS']['Default_port']
+        except KeyError:
+            listen_port = DEFAULT_PORT
+
+    try:
+        listen_address = params['ip']
+    except KeyError:
+        try:
+            listen_address = config['SETTINGS']['Listen_Address']
+        except KeyError:
+            listen_address = DEFAULT_IP_ADDRESS
+
     # Create database object
-    db = Storage()
+    try:
+        db_path = config['SETTINGS']['Database_path']
+    except KeyError:
+        db_path = ''
+    try:
+        db_file = config['SETTINGS']['Database_file']
+    except KeyError:
+        db_file = ''
+
+    db = Storage(os.path.join(
+        db_path,
+        db_file
+    ))
 
     # Start server background process
-    server_obj = Server(db)
+    server_obj = Server(db, listen_address, listen_port)
     server_obj.daemon = True
     server_obj.start()
 
-    # Show server options menu
-    show_interface()
+    # Create user interface
+    server_app = QApplication(sys.argv)
+    main_window = MainWindow()
 
-    while True:
-        option = input('Enter a command option: \n')
+    # Init main window params. Fill in the active users table
+    main_window.statusBar().showMessage('Сервер запущен')
+    main_window.active_clients_table.setModel(get_active_users_model(db))
+    main_window.active_clients_table.resizeColumnsToContents()
+    main_window.active_clients_table.resizeRowsToContents()
 
-        if option == 'exit':
-            break
-        elif option == 'help':
-            show_interface()
-        elif option == 'h':
-            # -- Get login history for select user all for all users ----
-            username = input('Enter user name to get his login history or enter for all users:\n')
-            users = db.login_history(username)
+    def update_active_users_list():
+        """ Update active users list table if new client connected """
+        global new_connection
+        if new_connection:
+            main_window.active_clients_table.setModel(get_active_users_model(db))
+            main_window.active_clients_table.resizeColumnsToContents()
+            main_window.active_clients_table.resizeRowsToContents()
+            with conflag_lock:
+                new_connection = False
 
-            if users:
-                for user in users:
-                    print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
-            else:
-                print('No login history found')
-        elif option == 'c':
-            # -- Get connected users list -------------------------------
-            users = db.active_users_list()
+    def show_statistics():
+        """ Show users statistics """
+        global stat_window
+        stat_window = HistoryWindow()
+        stat_window.history_table.setModel(get_stat_model(db))
+        stat_window.history_table.resizeColumnsToContents()
+        stat_window.history_table.resizeRowsToContents()
+        stat_window.show()
 
-            if users:
-                for user in users:
-                    print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
-            else:
-                print('No connected users found')
-        elif option == 'u':
-            # -- Get registered users list -------------------------------
-            users = db.users_list()
+    def server_config():
+        """ Create server configuration window """
+        global config_window
+        print('server_config() level')
+        config_window = ConfigWindow()
+        print('ConfigWindow level')
+        config_window.db_path.insert(config['SETTINGS']['Database_path'])
+        config_window.db_file.insert(config['SETTINGS']['Database_file'])
+        config_window.port.insert(config['SETTINGS']['Default_port'])
+        config_window.ip.insert(config['SETTINGS']['Listen_Address'])
+        config_window.save_btn.clicked.connect(save_server_config)
 
-            if users:
-                for user in users:
-                    print(f'User "{user[0]}" last logged in at {user[1]}')
-            else:
-                print('No users found')
+    def save_server_config():
+        """ Save server configuration """
+        global config_window
+        message = QMessageBox()
+        config['SETTINGS']['Database_path'] = config_window.db_path.text()
+        config['SETTINGS']['Database_file'] = config_window.db_file.text()
+
+        try:
+            port = int(config_window.port.text())
+        except ValueError:
+            message.warning(config_window, 'Ошибка', 'Порт должен быть числом')
         else:
-            print('Command not found. Try again or type help to get a menu')
+            config['SETTINGS']['Listen_Address'] = config_window.ip.text()
+            if 1023 < port < 65536:
+                config['SETTINGS']['Default_port'] = str(port)
+                with open('server.ini', 'w') as conf:
+                    config.write(conf)
+                    message.information(
+                        config_window, 'OK', 'Настройки успешно сохранены!'
+                    )
+            else:
+                message.warning(config_window, 'Ошибка', 'Порт должен быть между 1024 и 65536')
+
+    # Create active users list update timer
+    timer = QTimer()
+    timer.timeout.connect(update_active_users_list)
+    timer.start(1000)
+
+    # Bind main window menu items with functions
+    main_window.refresh_button.triggered.connect(update_active_users_list)
+    main_window.show_history_button.triggered.connect(show_statistics)
+    main_window.config_button.triggered.connect(server_config)
+
+    # Start server GUI
+    server_app.exec_()
+
+    # Show server options menu
+    # show_interface()
+    #
+    # while True:
+    #     option = input('Enter a command option: \n')
+    #
+    #     if option == 'exit':
+    #         break
+    #     elif option == 'help':
+    #         show_interface()
+    #     elif option == 'h':
+    #         # -- Get login history for select user all for all users ----
+    #         username = input('Enter user name to get his login history or enter for all users:\n')
+    #         users = db.login_history(username)
+    #
+    #         if users:
+    #             for user in users:
+    #                 print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
+    #         else:
+    #             print('No login history found')
+    #     elif option == 'c':
+    #         # -- Get connected users list -------------------------------
+    #         users = db.active_users_list()
+    #
+    #         if users:
+    #             for user in users:
+    #                 print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
+    #         else:
+    #             print('No connected users found')
+    #     elif option == 'u':
+    #         # -- Get registered users list -------------------------------
+    #         users = db.users_list()
+    #
+    #         if users:
+    #             for user in users:
+    #                 print(f'User "{user[0]}" last logged in at {user[1]}')
+    #         else:
+    #             print('No users found')
+    #     else:
+    #         print('Command not found. Try again or type help to get a menu')
 
 
 if __name__ == '__main__':

@@ -10,10 +10,13 @@ class CheckPort:
         return instance.__dict__[self.my_attr]
 
     def __set__(self, instance, value):
-        if value <= 0:
+        if isinstance(value, str):
+            value = int(value)
+
+        if not value or value <= 0:
             print(f'Port value sets to it\'s default value: {DEFAULT_PORT}')
             value = DEFAULT_PORT
-        instance.__dict__[self.my_attr] = value
+        instance.__dict__[self.my_attr] = int(value)
 
     def __delete__(self, instance):
         del instance.__dict__[self.my_attr]

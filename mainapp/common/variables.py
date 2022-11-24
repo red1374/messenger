@@ -23,6 +23,10 @@ USER = 'user'
 ACCOUNT_NAME = 'account_name'
 SENDER = 'from'
 DESTINATION = 'to'
+GET_CONTACTS = 'get_contacts'
+ADD_CONTACT = 'add_contact'
+DEL_CONTACT = 'del_contact'
+LIST_INFO = 'list'
 
 # Прочие ключи, используемые в протоколе
 PRESENCE = 'presence'
@@ -32,5 +36,6 @@ MESSAGE = 'message'
 MESSAGE_TEXT = 'text'
 EXIT = 'exit'
 
+
 # БД
-SERVER_DATABASE = os.path.join('sqlite:///', 'db.sqlite')
+SERVER_DATABASE = 'db.sqlite'

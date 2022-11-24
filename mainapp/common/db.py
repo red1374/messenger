@@ -1,6 +1,7 @@
 import datetime
 import os
 import sys
+from select import select
 
 from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -46,7 +47,7 @@ class Storage:
 
     class LoginHistory(Base):
         """ Table with users login information """
-        __tablename__ = 'users_history'
+        __tablename__ = 'users_login_history'
         id = Column(Integer, primary_key=True)
         user = Column(ForeignKey('users.id'))
         ipaddress = Column(String(50))
@@ -59,11 +60,41 @@ class Storage:
             self.port = port
 
         def __repr__(self):
-            return "<User('%s','%s', '%s', '%s')>" % (self.user, self.ipaddress, self.port, self.date_time)
+            return "<History('%s','%s', '%s', '%s')>" % (self.user, self.ipaddress, self.port, self.date_time)
 
-    def __init__(self):
+    class UsersContacts(Base):
+        """ Table with users contacts """
+        __tablename__ = 'users_contacts'
+        id = Column(Integer, primary_key=True)
+        user = Column(ForeignKey('users.id'))
+        contact = Column(ForeignKey('users.id'))
+
+        def __init__(self, user, contact):
+            self.user = user
+            self.contact = contact
+
+        def __repr__(self):
+            return "<Contact('%s','%s')>" % (self.user, self.contact)
+
+    class UsersHistory(Base):
+        """ Table with users messages statistics """
+        __tablename__ = 'users_history'
+        id = Column(Integer, primary_key=True)
+        user = Column(ForeignKey('users.id'))
+        sent = Column(Integer)
+        accepted = Column(Integer)
+
+        def __init__(self, user, sent=0, accepted=0):
+            self.user = user
+            self.sent = sent
+            self.accepted = accepted
+
+        def __repr__(self):
+            return "<History('%s','%s','%s')>" % (self.user, self.sent, self.accepted)
+
+    def __init__(self, db_path):
         # Create connection
-        self.engine = create_engine(SERVER_DATABASE,
+        self.engine = create_engine('sqlite:///' + (db_path if db_path else SERVER_DATABASE),
                                     echo=False, pool_recycle=7200, connect_args={'check_same_thread': False})
         # Create all tables
         Base.metadata.create_all(self.engine)
@@ -85,20 +116,24 @@ class Storage:
             # Update last login time if user is already exists
             user = result.first()
             user.last_login = datetime.datetime.now()
+            self.session.commit()
         else:
             # Add new user
             user = self.Users(username)
             self.session.add(user)
+            self.session.commit()
 
-        self.session.commit()
+            # Add statistics record if this is a new user
+            user_history = self.UsersHistory(user.id)
+            self.session.add(user_history)
 
         # Add information about new active user
         user_activity = self.ActiveUsers(user.id, ipaddress, port)
         self.session.add(user_activity)
 
         # Add new record at history table
-        user_history = self.LoginHistory(user.id, ipaddress, port)
-        self.session.add(user_history)
+        login_history = self.LoginHistory(user.id, ipaddress, port)
+        self.session.add(login_history)
 
         self.session.commit()
 
@@ -136,6 +171,59 @@ class Storage:
 
         if username:
             query = query.filter(self.Users.name == username)
+
+        return query.all()
+
+    def process_message(self, sender, recipient):
+        """ Update user's messages statistic """
+        sender_id = self.session.query(self.Users).filter_by(name=sender).first().id
+        recipient_id = self.session.query(self.Users).filter_by(name=recipient).first().id
+
+        # -- Update user's messages statistics --------------------
+        sender_stat = self.session.query(self.UsersHistory).filter_by(user=sender_id).first()
+        sender_stat.sent += 1
+        recipient_stat = self.session.query(self.UsersHistory).filter_by(user=recipient_id).first()
+        recipient_stat.accepted += 1
+
+        self.session.commit()
+
+    def add_contact(self, user, contact):
+        """ Add new user contact """
+        user = self.session.query(self.Users).filter_by(name=user).first()
+        contact = self.session.query(self.Users).filter_by(name=contact).first()
+
+        # -- Check if this contact is already exists
+        if not contact or self.session.query(self.UsersContacts).filter_by(user=user.id, contact=contact.id):
+            return False
+
+        # -- Add new contact
+        new_contact = self.UsersContacts(user.id, contact.id)
+        self.session.add(new_contact)
+        self.session.commit()
+
+    def remove_contact(self, user, contact):
+        """ Remove contact from users contacts """
+        user = self.session.query(self.Users).filter_by(name=user).first()
+        contact = self.session.query(self.Users).filter_by(name=contact).first()
+
+        if not contact:
+            return False
+
+        self.session.query(self.UsersContacts).filter(
+            self.UsersContacts.user == user.id,
+            self.UsersContacts.contact == contact.id
+        ).delete()
+
+        self.session.commit()
+
+    def message_history(self):
+        """ Get users messages statistics """
+        query = self.session.query(
+            self.Users.name,
+            self.Users.last_login,
+            self.UsersHistory.sent,
+            self.UsersHistory.accepted,
+        ).join(self.Users)
 
         return query.all()
 
