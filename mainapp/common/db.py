@@ -149,6 +149,18 @@ class Storage:
         users = self.session.query(self.Users.name, self.Users.last_login)
         return users.all()
 
+    def get_contacts(self, username):
+        """ Get users contacts list """
+        user = self.session.query(self.Users).filter_by(name=username).one()
+
+        # -- Get users contacts list -----------------
+        query = self.session.query(self.UsersContacts, self.Users.name). \
+            filter_by(user=user.id). \
+            join(self.Users, self.UsersContacts.contact == self.Users.id)
+
+        # -- Return only usernames -------------------
+        return [contact[1] for contact in query.all()]
+
     def active_users_list(self):
         """ Get a list of active users """
         users = self.session.query(
@@ -193,7 +205,7 @@ class Storage:
         contact = self.session.query(self.Users).filter_by(name=contact).first()
 
         # -- Check if this contact is already exists
-        if not contact or self.session.query(self.UsersContacts).filter_by(user=user.id, contact=contact.id):
+        if not contact or self.session.query(self.UsersContacts).filter_by(user=user.id, contact=contact.id).count():
             return False
 
         # -- Add new contact

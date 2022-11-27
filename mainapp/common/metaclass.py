@@ -5,11 +5,9 @@ import sys
 
 sys.path.append(os.path.join(os.getcwd(), '..'))
 
-import logs.app_log_config
-
 app_log = logging.getLogger('app')
 
-from mainapp.errors import ExceptionsMetaClassError, RequiredMetaClassError, VariableMetaClassError
+from mainapp.common.errors import ExceptionsMetaClassError, RequiredMetaClassError, VariableMetaClassError
 
 
 class DictChecker:

@@ -25,12 +25,13 @@ SENDER = 'from'
 DESTINATION = 'to'
 GET_CONTACTS = 'get_contacts'
 ADD_CONTACT = 'add_contact'
-DEL_CONTACT = 'del_contact'
+REMOVE_CONTACT = 'remove_contact'
 LIST_INFO = 'list'
 
 # Прочие ключи, используемые в протоколе
 PRESENCE = 'presence'
 RESPONSE = 'response'
+USERS_REQUEST = 'get_users'
 ERROR = 'error'
 MESSAGE = 'message'
 MESSAGE_TEXT = 'text'
@@ -39,3 +40,9 @@ EXIT = 'exit'
 
 # БД
 SERVER_DATABASE = 'db.sqlite'
+
+RESPONSE_200 = {RESPONSE: 200}
+
+RESPONSE_202 = {RESPONSE: 202, LIST_INFO: None}
+
+RESPONSE_400 = {RESPONSE: 400, ERROR: None}

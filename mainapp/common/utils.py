@@ -11,15 +11,14 @@ sys.path.append(os.path.join(os.getcwd(), '..'))
 from common.variables import MAX_PACKAGE_LENGTH, ENCODING, MESSAGE, TIME, ACTION, ACCOUNT_NAME, MESSAGE_TEXT, USER
 from common.decorators import Log
 
-from errors import NonDictInputError
+from common.errors import NonDictInputError
 
 
 @Log
 def get_message(client):
-    """
-    Утилита приёма и декодирования сообщения.
-    Принимает байты, выдаёт словарь, если принято что-то
-    другое возвращает ValueError (ошибку значения)
+    """ Function receives and decodes incoming message.
+    Receives bytes, returns a dict. Return an ValueError
+    exception in other cases
     """
     encoded_response = client.recv(MAX_PACKAGE_LENGTH)
     if isinstance(encoded_response, bytes):

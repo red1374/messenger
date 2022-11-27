@@ -18,7 +18,8 @@ from common.db import Storage
 
 from common.variables import ACTION, ACCOUNT_NAME, RESPONSE, MAX_CONNECTIONS, TIME, \
     PRESENCE, MESSAGE, EXIT, MESSAGE_TEXT, USER, ERROR, DEFAULT_IP_ADDRESS, \
-    SENDER, DESTINATION, DEFAULT_PORT
+    SENDER, DESTINATION, DEFAULT_PORT, RESPONSE_202, RESPONSE_200, RESPONSE_400, LIST_INFO, \
+    GET_CONTACTS, ADD_CONTACT, REMOVE_CONTACT, USERS_REQUEST
 from common.utils import get_message, send_message, get_params
 
 from common.decorators import Log
@@ -60,53 +61,89 @@ class Server(threading.Thread, metaclass=ServerVerifier):
 
         server_log.debug(f'Client message processing : {message}')
 
-        if ACTION in message and message[ACTION] in [PRESENCE, MESSAGE, EXIT] and TIME in message:
+        if ACTION in message and TIME in message and \
+                message[ACTION] in [PRESENCE, MESSAGE, EXIT, GET_CONTACTS, ADD_CONTACT, REMOVE_CONTACT, USERS_REQUEST]:
             if message[ACTION] in PRESENCE and USER in message and ACCOUNT_NAME in message[USER]:
-                # Send OK status to a client
+                #  -- Send OK status to a client ----------------
                 if message[USER][ACCOUNT_NAME] not in self.clients_names.keys():
-                    # Add new client with unique name to clients names list
+                    #  -- Add new client with unique name to clients names list
                     self.clients_names[message[USER][ACCOUNT_NAME]] = client
 
-                    # Add information about new client to db
+                    # -- Add information about new client to db
                     client_ip, client_port = client.getpeername()
                     self.db.user_login(message[USER][ACCOUNT_NAME], client_ip, client_port)
 
                     send_message(client, {RESPONSE: 200})
                     with conflag_lock:
                         new_connection = True
-                    return True
                 else:
-                    # Client with this account name is already exists
-                    send_message(client, {
-                        RESPONSE: 400,
-                        ERROR: f' Client with account name "{message[USER][ACCOUNT_NAME]}" is already exists'
-                    })
+                    # -- Client with this account name is already exists
+                    response = RESPONSE_400
+                    response['ERROR'] = f' Client with account name "{message[USER][ACCOUNT_NAME]}" is already exists'
+                    send_message(client, response)
                     self.clients_list.remove(client)
                     client.close()
-                    return True
+                return True
             elif DESTINATION in message and SENDER in message and MESSAGE_TEXT in message:
-                # Add message to a messages list
-                server_log.debug(f'Add message to a message list : {message[MESSAGE_TEXT]}')
-                self.messages_list.append(message)
+                # -- Add message to a messages list ----
+                if message[DESTINATION] in self.clients_names:
+                    self.messages_list.append(message)
+                    server_log.debug(f'Add message to a message list : {message[MESSAGE_TEXT]}')
+                    self.db.process_message(message[SENDER], message[DESTINATION])
+                    send_message(client, {RESPONSE: 200})
+                else:
+                    response = RESPONSE_400
+                    response['ERROR'] = 'User not registered!'
+                    send_message(client, response)
                 return True
             elif message[ACTION] in EXIT and ACCOUNT_NAME in message:
-                # Close client socket if client closed the chat
+                # -- Close client socket if client closed the chat
                 self.clients_list.remove(self.clients_names[message[ACCOUNT_NAME]])
                 self.clients_names[message[ACCOUNT_NAME]].close()
                 del self.clients_names[message[ACCOUNT_NAME]]
 
                 self.db.user_logout(message[ACCOUNT_NAME])
+                server_log.info('Client disconnected properly')
 
                 with conflag_lock:
                     new_connection = True
 
                 return True
+            # -- Contacts list request ----------------------------
+            elif message[ACTION] == GET_CONTACTS and USER in message and \
+                    self.clients_names[message[USER]] == client:
+                response = RESPONSE_202
+                response[LIST_INFO] = self.db.get_contacts(message[USER])
+                send_message(client, response)
 
-        # Send Bad request status to a client
-        send_message(client, {
-            RESPONSE: 400,
-            ERROR: 'Bad Request'
-        })
+                return True
+            # -- New contact adding ------------------------------
+            elif message[ACTION] == ADD_CONTACT and ACCOUNT_NAME in message and USER in message \
+                    and self.clients_names[message[USER]] == client:
+                self.db.add_contact(message[USER], message[ACCOUNT_NAME])
+                send_message(client, RESPONSE_200)
+
+                return True
+            # -- Deleting contact -------------------------------
+            elif message[ACTION] == REMOVE_CONTACT and ACCOUNT_NAME in message and USER in message \
+                    and self.clients_names[message[USER]] == client:
+                self.db.remove_contact(message[USER], message[ACCOUNT_NAME])
+                send_message(client, RESPONSE_200)
+
+                return True
+            # -- Known users request ---------------------------
+            elif message[ACTION] == USERS_REQUEST and ACCOUNT_NAME in message and \
+                    self.clients_names[message[ACCOUNT_NAME]] == client:
+                response = RESPONSE_202
+                response[LIST_INFO] = [user[0] for user in self.db.users_list()]
+                send_message(client, response)
+
+                return True
+
+        # -- Send Bad request status to a client ----------------
+        response = RESPONSE_400
+        response['ERROR'] = 'Bad Request'
+        send_message(client, response)
 
         return False
 
@@ -209,16 +246,6 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                     self.messages_list.clear()
 
 
-def show_interface():
-    """ Show server options menu """
-    print('Select option:')
-    print('\tu - get users list')
-    print('\tc - get connected users list')
-    print('\th - get users login history')
-    print('\texit - stop server')
-    print('\thelp - show options menu')
-
-
 def main():
     # Load server settings file
     config = configparser.ConfigParser()
@@ -234,8 +261,7 @@ def main():
             'Default_port': '',
             'Listen_Address': '',
         }
-    print(config['SETTINGS']['Default_port'], type(config['SETTINGS']['Default_port']))
-    f = input()
+
     # Load parameters from command line or setting up a default values if config is empty
     params = get_params()
     try:
@@ -306,9 +332,7 @@ def main():
     def server_config():
         """ Create server configuration window """
         global config_window
-        print('server_config() level')
         config_window = ConfigWindow()
-        print('ConfigWindow level')
         config_window.db_path.insert(config['SETTINGS']['Database_path'])
         config_window.db_file.insert(config['SETTINGS']['Database_file'])
         config_window.port.insert(config['SETTINGS']['Default_port'])
@@ -350,47 +374,6 @@ def main():
 
     # Start server GUI
     server_app.exec_()
-
-    # Show server options menu
-    # show_interface()
-    #
-    # while True:
-    #     option = input('Enter a command option: \n')
-    #
-    #     if option == 'exit':
-    #         break
-    #     elif option == 'help':
-    #         show_interface()
-    #     elif option == 'h':
-    #         # -- Get login history for select user all for all users ----
-    #         username = input('Enter user name to get his login history or enter for all users:\n')
-    #         users = db.login_history(username)
-    #
-    #         if users:
-    #             for user in users:
-    #                 print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
-    #         else:
-    #             print('No login history found')
-    #     elif option == 'c':
-    #         # -- Get connected users list -------------------------------
-    #         users = db.active_users_list()
-    #
-    #         if users:
-    #             for user in users:
-    #                 print(f'User "{user[0]}" ({user[1]}:{user[2]}) connected at {user[3]}')
-    #         else:
-    #             print('No connected users found')
-    #     elif option == 'u':
-    #         # -- Get registered users list -------------------------------
-    #         users = db.users_list()
-    #
-    #         if users:
-    #             for user in users:
-    #                 print(f'User "{user[0]}" last logged in at {user[1]}')
-    #         else:
-    #             print('No users found')
-    #     else:
-    #         print('Command not found. Try again or type help to get a menu')
 
 
 if __name__ == '__main__':

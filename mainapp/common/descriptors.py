@@ -11,11 +11,12 @@ class CheckPort:
 
     def __set__(self, instance, value):
         if isinstance(value, str):
-            value = int(value)
+            value = int(value) if value.isdigit() else 0
 
         if not value or value <= 0:
             print(f'Port value sets to it\'s default value: {DEFAULT_PORT}')
             value = DEFAULT_PORT
+
         instance.__dict__[self.my_attr] = int(value)
 
     def __delete__(self, instance):
