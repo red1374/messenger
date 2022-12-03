@@ -129,6 +129,10 @@ class ClientDatabase:
         return [(message.from_user, message.to_user, message.message, message.date)
                 for message in query.all()]
 
+    def contacts_clear(self):
+        """ Clear user contacts table """
+        self.session.query(self.Contacts).delete()
+
 
 if __name__ == '__main__':
     client = ClientDatabase('test_1')

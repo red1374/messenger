@@ -3,7 +3,7 @@ import os
 import sys
 from select import select
 
-from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey, create_engine
+from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey, create_engine, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
 sys.path.append(os.path.join(os.getcwd(), '..'))
 
@@ -20,10 +20,13 @@ class Storage:
         id = Column(Integer, primary_key=True)
         name = Column(String(50), unique=True)
         last_login = Column(DateTime(timezone=True))  # , onupdate=func.now()
+        passwd_hash = Column(String(50), unique=True)
+        pubkey = Column(Text, unique=True)
 
-        def __init__(self, name):
+        def __init__(self, name, passwd_hash):
             self.name = name
             self.last_login = datetime.datetime.now()
+            self.passwd_hash = passwd_hash
 
         def __repr__(self):
             return "<User('%s','%s')>" % (self.name, self.last_login)
@@ -106,32 +109,27 @@ class Storage:
         self.session.query(self.ActiveUsers).delete()
         self.session.commit()
 
-    def user_login(self, username, ipaddress, port):
+    def user_login(self, username, ipaddress, port, key):
         """ Add an information about new connected user """
 
         result = self.session.query(self.Users).filter_by(name=username)
 
-        # Add a record to a Users' table about new connected user
+        # -- Add a record to a Users' table about new connected user -
         if result.count():
-            # Update last login time if user is already exists
+            # -- Update last login time if user is already exists -----
             user = result.first()
             user.last_login = datetime.datetime.now()
-            self.session.commit()
+            # -- Save public key if it was changed --------------------
+            if user.pubkey != key:
+                user.pubkey = key
         else:
-            # Add new user
-            user = self.Users(username)
-            self.session.add(user)
-            self.session.commit()
+            raise ValueError('User is not registered')
 
-            # Add statistics record if this is a new user
-            user_history = self.UsersHistory(user.id)
-            self.session.add(user_history)
-
-        # Add information about new active user
+        # -- Add information about new active user --------------------
         user_activity = self.ActiveUsers(user.id, ipaddress, port)
         self.session.add(user_activity)
 
-        # Add new record at history table
+        # -- Add new record at history table --------------------------
         login_history = self.LoginHistory(user.id, ipaddress, port)
         self.session.add(login_history)
 
@@ -143,6 +141,45 @@ class Storage:
         user = self.session.query(self.Users).filter_by(name=username).first()
         self.session.query(self.ActiveUsers).filter_by(user=user.id).delete()
         self.session.commit()
+
+    def add_user(self, name, passwd_hash):
+        """ Add new user method """
+        new_user = self.Users(name, passwd_hash)
+        self.session.add(new_user)
+        self.session.commit()
+
+        history_row = self.UsersHistory(new_user.id)
+        self.session.add(history_row)
+        self.session.commit()
+
+    def remove_user(self, name):
+        """ Remove user method """
+        user = self.session.query(self.Users).filter_by(name=name).first()
+        self.session.query(self.ActiveUsers).filter_by(user=user.id).delete()
+        self.session.query(self.LoginHistory).filter_by(user=user.id).delete()
+        self.session.query(self.UsersContacts).filter_by(user=user.id).delete()
+        self.session.query(
+            self.UsersContacts).filter_by(
+            contact=user.id).delete()
+        self.session.query(self.UsersHistory).filter_by(user=user.id).delete()
+        self.session.query(self.Users).filter_by(name=name).delete()
+        self.session.commit()
+
+    def get_hash(self, name):
+        """ Get user password hash method """
+        user = self.session.query(self.Users).filter_by(name=name).first()
+        return user.passwd_hash
+
+    def get_pubkey(self, name):
+        """ Get user public key method """
+        user = self.session.query(self.Users).filter_by(name=name).first()
+        return user.pubkey
+
+    def check_user(self, name):
+        """ Check user exists method """
+        if self.session.query(self.Users).filter_by(name=name).count():
+            return True
+        return False
 
     def users_list(self):
         """ Get all registered users """
