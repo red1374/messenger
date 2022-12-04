@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, func, create_engine, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.sql import default_comparator
 
 Base = declarative_base()
 

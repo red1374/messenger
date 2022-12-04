@@ -24,7 +24,7 @@ server_log = logging.getLogger('server')
 def config_load():
     """Load server settings file"""
     config = configparser.ConfigParser()
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    dir_path = os.getcwd()
     config.read(f"{dir_path}/{'server.ini'}")
 
     if 'SETTINGS' not in config:

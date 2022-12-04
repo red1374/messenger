@@ -4,6 +4,7 @@ import sys
 
 from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey, create_engine, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.sql import default_comparator
 
 sys.path.append(os.path.join(os.getcwd(), '..'))
 

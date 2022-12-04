@@ -7,7 +7,7 @@ from common.variables import LOGGING_LEVEL
 
 format = logging.Formatter("%(asctime)s %(levelname)-8s %(module)-18s %(message)s")
 
-path = os.path.dirname(os.path.abspath(__file__))
+path = os.getcwd()
 path = os.path.join(path, 'app.log')
 
 """ Setting up logger handlers """

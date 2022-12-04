@@ -62,7 +62,7 @@ def get_client_data(start_dialog):
         passwd = start_dialog.client_passwd.text()
         client_log.debug(f'Using USERNAME = {name}, PASSWD = {passwd}.')
     else:
-        exit(0)
+        sys.exit(0)
 
     return name, passwd
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     print(f'You logged in as "{client_name}"')
 
     # -- Upload keys from .key files or generate a new one if they are not exist
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    dir_path = os.getcwd()
     key_file = os.path.join(dir_path, f'{client_name}.key')
     if not os.path.exists(key_file):
         keys = RSA.generate(2048, os.urandom)
