@@ -1,8 +1,10 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtWidgets
 
 
 class Ui_MainClientWindow(object):
+    """Class describes client main window with controls"""
     def setupUi(self, MainClientWindow):
+        """Preparing main client window settings and all child controls parameters"""
         MainClientWindow.setObjectName("MainClientWindow")
         MainClientWindow.resize(756, 534)
         MainClientWindow.setMinimumSize(QtCore.QSize(756, 534))
@@ -92,6 +94,7 @@ class Ui_MainClientWindow(object):
         QtCore.QMetaObject.connectSlotsByName(MainClientWindow)
 
     def retranslateUi(self, MainClientWindow):
+        """Method to setting up a labels values in a current language"""
         _translate = QtCore.QCoreApplication.translate
         MainClientWindow.setWindowTitle(_translate("MainClientWindow", "Messanger v2.0"))
         self.label_contacts.setText(_translate("MainClientWindow", "Список контактов:"))

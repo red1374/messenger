@@ -8,7 +8,6 @@ import threading
 import hashlib
 import hmac
 import binascii
-from pydoc import cli
 
 from PyQt5.QtCore import pyqtSignal, QObject
 
@@ -18,20 +17,21 @@ from common.utils import send_message, get_message
 from common.variables import *
 from common.errors import ServerError, ReqFieldMissingError
 from common.decorators import Log
+
 client_log = logging.getLogger('client')
 socket_lock = threading.Lock()
 
 
 class ClientTransport(threading.Thread, QObject):
-    """ Transport class - to communicate with the server """
+    """Transport class - used to communicate with the server"""
 
-    # -- Lost connection and new message signal
+    # -- Signal list --------------------
     new_message = pyqtSignal(dict)
     message_205 = pyqtSignal()
     connection_lost = pyqtSignal()
 
     def __init__(self, port, ip_address, database, username, passwd, keys):
-        # -- Parents constructors call
+        # -- Parents constructors call--------------------------
         threading.Thread.__init__(self)
         QObject.__init__(self)
 
@@ -62,7 +62,7 @@ class ClientTransport(threading.Thread, QObject):
         self.running = True
 
     def connection_init(self):
-        """ Server connection initiation method """
+        """Server connection initiation method"""
         self.transport = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_log.info(f'Starting client transport socket')
 
@@ -91,7 +91,7 @@ class ClientTransport(threading.Thread, QObject):
         client_log.debug('Connection is set!')
 
         # -- Starting authentication process ---------------
-        # -- Getting passwor hash --------------------------
+        # -- Getting password hash -------------------------
         passwd_bytes = self.password.encode('utf-8')
         salt = self.account_name.lower().encode('utf-8')
         passwd_hash = hashlib.pbkdf2_hmac('sha512', passwd_bytes, salt, 10000)
@@ -102,9 +102,9 @@ class ClientTransport(threading.Thread, QObject):
         # -- Getting public key and decoding it from bytes -
         pubkey = self.keys.publickey().export_key().decode('ascii')
 
-        # -- Authorizing on the server ------------------------
+        # -- Authorizing on the server ---------------------
         with socket_lock:
-            # -- Try to send a presence message to a server ----
+            # -- Try to send a presence message to a server
             try:
                 client_log.info(f'Starting to send presence message')
                 send_message(self.transport, self.create_presence(pubkey))
@@ -132,7 +132,7 @@ class ClientTransport(threading.Thread, QObject):
                 raise ServerError('Connection error while client authorization')
 
     def create_presence(self, pubkey):
-        """ Method to generate a presence dict """
+        """Method to generate a presence dict"""
         client_log.debug(f'Presence message create')
         out = {
             ACTION: PRESENCE,
@@ -148,7 +148,7 @@ class ClientTransport(threading.Thread, QObject):
         return out
 
     def create_exit_message(self):
-        """ Method to generate "Exit" message """
+        """Method to generate "Exit" message"""
         return {
             ACTION: EXIT,
             TIME: time.time(),
@@ -157,7 +157,7 @@ class ClientTransport(threading.Thread, QObject):
 
     @Log
     def process_server_answer(self, message):
-        """ Processing server answer """
+        """Processing server answer"""
         client_log.debug(f'Server response message: {message}')
         if RESPONSE in message:
             if int(message[RESPONSE]) == 200:
@@ -179,7 +179,7 @@ class ClientTransport(threading.Thread, QObject):
             self.new_message.emit(message)
 
     def contacts_list_request(self):
-        """ Users list request from server """
+        """Users list request from server"""
         self.database.contacts_clear()
         client_log.info(f'Contacts list request for user {self.account_name}')
         request = {
@@ -201,7 +201,7 @@ class ClientTransport(threading.Thread, QObject):
             client_log.error('Contacts list request failed!')
 
     def user_list_update(self):
-        """ Update table with known users """
+        """Update table with known users"""
         client_log.debug(f'Known users list request for {self.account_name}')
         request = {
             ACTION: USERS_REQUEST,
@@ -220,7 +220,7 @@ class ClientTransport(threading.Thread, QObject):
             client_log.error('Known users list update has failed.')
 
     def key_request(self, user):
-        """ Users public key requests form a server method """
+        """Users public key requests form a server method"""
         client_log.debug(f'Public key request for "{user}"')
         request = {
             ACTION: PUBLIC_KEY_REQUEST,
@@ -237,24 +237,24 @@ class ClientTransport(threading.Thread, QObject):
             client_log.error(f'Can\'t get public key for user "{user}"')
 
     def add_contact(self, contact):
-        """ Add user contact """
+        """Adding user contact to a server"""
         client_log.info(f'Contact adding: {contact}')
-        request = {
-            ACTION: ADD_CONTACT,
-            TIME: time.time(),
-            USER: self.account_name,
-            ACCOUNT_NAME: contact
-        }
 
-        with socket_lock:
-            send_message(self.transport, request)
-            self.process_server_answer(self, get_message(self.transport))
+        self.send_server_request(ADD_CONTACT, contact)
 
     def remove_contact(self, contact):
-        """ Remove user contact from a server """
+        """Remove user contact from a server"""
         client_log.info(f'Removing user contact: {contact}')
+        self.send_server_request(REMOVE_CONTACT, contact)
+
+    def send_server_request(self, action, contact):
+        """Sending request to a server for contacts manipulate method"""
+        if not action or not contact:
+            client_log.debug(f'Empty server request parameters: {action}, {contact}')
+            return False
+
         request = {
-            ACTION: REMOVE_CONTACT,
+            ACTION: action,
             TIME: time.time(),
             USER: self.account_name,
             ACCOUNT_NAME: contact
@@ -265,7 +265,7 @@ class ClientTransport(threading.Thread, QObject):
             self.process_server_answer(self, get_message(self.transport))
 
     def transport_shutdown(self):
-        """ Method to close a connection and send an exit message """
+        """Method to close a connection and send an exit message"""
         self.running = False
 
         with socket_lock:
@@ -278,7 +278,7 @@ class ClientTransport(threading.Thread, QObject):
         time.sleep(0.5)
 
     def send_message(self, to, message):
-        """ Method to send a message to a server """
+        """Method to send a user message to a server"""
         client_log.info(f'Sending a message: {message}')
         message_dict = {
             ACTION: MESSAGE,
@@ -296,6 +296,7 @@ class ClientTransport(threading.Thread, QObject):
             client_log.info(f'Message for user "{to}" has been sent')
 
     def run(self):
+        """Main thread method. Starts automatically"""
         client_log.debug('Starting messages receiver process')
         while self.running:
             # -- Wait for 1 second and try to capture a socket ---

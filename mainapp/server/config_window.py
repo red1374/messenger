@@ -1,10 +1,15 @@
-from PyQt5.QtWidgets import QDialog, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox
-from PyQt5.QtCore import Qt
+import sys
 import os
 
+from PyQt5.QtWidgets import QDialog, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox
+from PyQt5.QtCore import Qt
+
+sys.path.append(os.path.join(os.getcwd(), '..'))
+
+from common.variables import SERVER_CONFIG
 
 class ConfigWindow(QDialog):
-    """ Configuration window class """
+    """Server configuration window class"""
 
     def __init__(self, config):
         super().__init__()
@@ -89,7 +94,7 @@ class ConfigWindow(QDialog):
         self.save_btn.clicked.connect(self.save_server_config)
 
     def open_file_dialog(self):
-        """ Select file directory dialog window method """
+        """Select file directory dialog window method"""
 
         global dialog
 
@@ -100,7 +105,7 @@ class ConfigWindow(QDialog):
         self.db_path.insert(path)
 
     def save_server_config(self):
-        """ Save server configuration """
+        """Saving server configuration to a config file"""
 
         global config_window
 
@@ -117,7 +122,7 @@ class ConfigWindow(QDialog):
                 self.config['SETTINGS']['Default_port'] = str(port)
                 dir_path = os.path.dirname(os.path.realpath(__file__))
                 dir_path = os.path.join(dir_path, '..')
-                with open(f"{dir_path}/{'server.ini'}", 'w') as conf:
+                with open(f'{dir_path}/{SERVER_CONFIG}', 'w') as conf:
                     self.config.write(conf)
                     message.information(
                         self, 'OK', 'Настройки успешно сохранены!')

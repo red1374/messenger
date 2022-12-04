@@ -12,7 +12,7 @@ client_log = logging.getLogger('client')
 
 
 class DelContactDialog(QDialog):
-    """ Dialog window to delete contact """
+    """Dialog window to delete a contact"""
     def __init__(self, database):
         super().__init__()
         self.database = database

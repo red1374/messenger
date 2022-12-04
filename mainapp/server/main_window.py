@@ -1,7 +1,7 @@
 import os
 import sys
 
-from PyQt5.QtWidgets import QMainWindow, QAction, qApp, QApplication, QLabel, QTableView
+from PyQt5.QtWidgets import QMainWindow, QAction, qApp, QLabel, QTableView
 from PyQt5.QtGui import QStandardItemModel, QStandardItem
 from PyQt5.QtCore import QTimer
 
@@ -14,7 +14,9 @@ from server.remove_user import DelUserDialog
 
 
 class MainWindow(QMainWindow):
+    """Server main window class"""
     def __init__(self, database, server, config):
+        """Setting up server main window and all controls parameters"""
         super().__init__()
 
         self.db = database
@@ -82,7 +84,7 @@ class MainWindow(QMainWindow):
         self.show()
 
     def get_active_users_model(self):
-        """ Create active users list table """
+        """Creating active users list table method"""
         users_list = self.db.active_users_list()
         table_list = QStandardItemModel()
         table_list.setHorizontalHeaderLabels(['Клиент', 'IP Адрес', 'Порт', 'Время подключения'])
@@ -105,34 +107,34 @@ class MainWindow(QMainWindow):
         return table_list
 
     def update_active_users_list(self):
-        """ Update active users list table if new client connected """
+        """Updating active users list table if new client connected method"""
 
         self.active_clients_table.setModel(self.get_active_users_model())
         self.active_clients_table.resizeColumnsToContents()
         self.active_clients_table.resizeRowsToContents()
 
     def show_statistics(self):
-        """ Create user statistics window method """
+        """Creating user statistics window method"""
         global stat_window
         stat_window = StatWindow(self.db)
         stat_window.show()
 
     def server_config(self):
-        """ Create server configuration window method """
+        """Creating server configuration window method"""
 
         global config_window
 
         config_window = ConfigWindow(self.config)
 
     def register_user(self):
-        """ Create user registration window method """
+        """Creating user registration window method"""
         global reg_window
 
         reg_window = RegisterUser(self.db, self.server_thread)
         reg_window.show()
 
     def delete_user(self):
-        """ Create user delete window method """
+        """Creating user delete window method"""
         global rem_window
 
         rem_window = DelUserDialog(self.db, self.server_thread)

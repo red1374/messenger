@@ -32,8 +32,7 @@ def get_message(client):
 
 @Log
 def send_message(sock, message):
-    """
-    Function to encode and send message to a recipient.
+    """Function to encode and send message to a recipient.
     Converts a dict to a string, then make from it bytes and send it to recipient
     """
     if not isinstance(message, dict):
@@ -46,7 +45,7 @@ def send_message(sock, message):
 
 @Log
 def get_params():
-    """ Get params dict from args list """
+    """Get params dict from args list"""
     if len(sys.argv) == 0:
         return None
 
@@ -61,7 +60,7 @@ def get_params():
 
 @Log
 def get_message_dict(message='', account_name='Guest'):
-    """ Generate message dict """
+    """Generate message dict"""
     return {
         ACTION: MESSAGE,
         TIME: time.time(),

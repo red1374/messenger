@@ -13,11 +13,13 @@ import logs.client_log_config
 
 
 class Log:
+    """Class - logger decorator. Add information about called method to a log"""
     def __init__(self, func):
         functools.update_wrapper(self, func)
         self.func = func
 
     def __call__(self, *args, **kwargs):
+        """Adding information about called method to a log file"""
         pattern = re.compile('([A-z0-9_-]+).py$')
         logger_name = re.findall(pattern, sys.argv[0])[0]
         parent_func_name = traceback.format_stack()[0].strip().split()[-1]
@@ -32,9 +34,8 @@ class Log:
 
 
 def login_required(func):
-    """
-        Checks that client is authorized on a server.
-        Generate TypeError exception if it's not
+    """Checks that client is authorized on a server.
+    Generate TypeError exception if it's not
     """
 
     def checker(*args, **kwargs):

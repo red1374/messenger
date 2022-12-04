@@ -1,12 +1,11 @@
 import datetime
 import os
 import sys
-from select import select
 
 from sqlalchemy import Column, String, Integer, DateTime, func, ForeignKey, create_engine, Text
 from sqlalchemy.orm import declarative_base, sessionmaker
-sys.path.append(os.path.join(os.getcwd(), '..'))
 
+sys.path.append(os.path.join(os.getcwd(), '..'))
 
 from common.variables import SERVER_DATABASE
 
@@ -14,8 +13,9 @@ Base = declarative_base()
 
 
 class Storage:
+    """Class to work with Server database"""
     class Users(Base):
-        """ Table with registered users """
+        """Table with registered users"""
         __tablename__ = 'users'
         id = Column(Integer, primary_key=True)
         name = Column(String(50), unique=True)
@@ -32,7 +32,7 @@ class Storage:
             return "<User('%s','%s')>" % (self.name, self.last_login)
 
     class ActiveUsers(Base):
-        """ Table with user activity information """
+        """Table with user activity information"""
         __tablename__ = 'users_activity'
         id = Column(Integer, primary_key=True)
         user = Column(ForeignKey('users.id'), unique=True)
@@ -49,7 +49,7 @@ class Storage:
             return "<User('%s','%s', '%s', '%s')>" % (self.user, self.ipaddress, self.port, self.login_time)
 
     class LoginHistory(Base):
-        """ Table with users login information """
+        """Table with users login information"""
         __tablename__ = 'users_login_history'
         id = Column(Integer, primary_key=True)
         user = Column(ForeignKey('users.id'))
@@ -66,7 +66,7 @@ class Storage:
             return "<History('%s','%s', '%s', '%s')>" % (self.user, self.ipaddress, self.port, self.date_time)
 
     class UsersContacts(Base):
-        """ Table with users contacts """
+        """Table with users contacts"""
         __tablename__ = 'users_contacts'
         id = Column(Integer, primary_key=True)
         user = Column(ForeignKey('users.id'))
@@ -80,7 +80,7 @@ class Storage:
             return "<Contact('%s','%s')>" % (self.user, self.contact)
 
     class UsersHistory(Base):
-        """ Table with users messages statistics """
+        """Table with users messages statistics"""
         __tablename__ = 'users_history'
         id = Column(Integer, primary_key=True)
         user = Column(ForeignKey('users.id'))
@@ -96,21 +96,21 @@ class Storage:
             return "<History('%s','%s','%s')>" % (self.user, self.sent, self.accepted)
 
     def __init__(self, db_path):
-        # Create connection
+        # -- Creating server connection ------------
         self.engine = create_engine('sqlite:///' + (db_path if db_path else SERVER_DATABASE),
                                     echo=False, pool_recycle=7200, connect_args={'check_same_thread': False})
-        # Create all tables
+        # -- Creating all server tables ------------
         Base.metadata.create_all(self.engine)
         session = sessionmaker(bind=self.engine)
 
         self.session = session()
 
-        # Truncate table with active users
+        # -- Truncate table with active users -----
         self.session.query(self.ActiveUsers).delete()
         self.session.commit()
 
     def user_login(self, username, ipaddress, port, key):
-        """ Add an information about new connected user """
+        """Add an information about new connected user"""
 
         result = self.session.query(self.Users).filter_by(name=username)
 
@@ -136,14 +136,14 @@ class Storage:
         self.session.commit()
 
     def user_logout(self, username):
-        """ Trigger function on user disconnect event """
+        """User disconnect event handler method"""
 
         user = self.session.query(self.Users).filter_by(name=username).first()
         self.session.query(self.ActiveUsers).filter_by(user=user.id).delete()
         self.session.commit()
 
     def add_user(self, name, passwd_hash):
-        """ Add new user method """
+        """Adding new user method """
         new_user = self.Users(name, passwd_hash)
         self.session.add(new_user)
         self.session.commit()
@@ -153,7 +153,7 @@ class Storage:
         self.session.commit()
 
     def remove_user(self, name):
-        """ Remove user method """
+        """Removing user method"""
         user = self.session.query(self.Users).filter_by(name=name).first()
         self.session.query(self.ActiveUsers).filter_by(user=user.id).delete()
         self.session.query(self.LoginHistory).filter_by(user=user.id).delete()
@@ -166,28 +166,28 @@ class Storage:
         self.session.commit()
 
     def get_hash(self, name):
-        """ Get user password hash method """
+        """Getting user password hash method"""
         user = self.session.query(self.Users).filter_by(name=name).first()
         return user.passwd_hash
 
     def get_pubkey(self, name):
-        """ Get user public key method """
+        """Getting user public key method"""
         user = self.session.query(self.Users).filter_by(name=name).first()
         return user.pubkey
 
     def check_user(self, name):
-        """ Check user exists method """
+        """Checks user exist method"""
         if self.session.query(self.Users).filter_by(name=name).count():
             return True
         return False
 
     def users_list(self):
-        """ Get all registered users """
+        """Getting all registered users method"""
         users = self.session.query(self.Users.name, self.Users.last_login)
         return users.all()
 
     def get_contacts(self, username):
-        """ Get users contacts list """
+        """Getting users contacts list method"""
         user = self.session.query(self.Users).filter_by(name=username).one()
 
         # -- Get users contacts list -----------------
@@ -199,7 +199,7 @@ class Storage:
         return [contact[1] for contact in query.all()]
 
     def active_users_list(self):
-        """ Get a list of active users """
+        """Getting a list of active users method"""
         users = self.session.query(
             self.Users.name,
             self.ActiveUsers.ipaddress,
@@ -210,7 +210,7 @@ class Storage:
         return users.all()
 
     def login_history(self, username=''):
-        """ Get information about current user or about all users """
+        """Getting information about current user or about all users method"""
         query = self.session.query(
             self.Users.name,
             self.LoginHistory.ipaddress,
@@ -224,7 +224,7 @@ class Storage:
         return query.all()
 
     def process_message(self, sender, recipient):
-        """ Update user's messages statistic """
+        """Update user's messages statistic method"""
         sender_id = self.session.query(self.Users).filter_by(name=sender).first().id
         recipient_id = self.session.query(self.Users).filter_by(name=recipient).first().id
 
@@ -237,7 +237,7 @@ class Storage:
         self.session.commit()
 
     def add_contact(self, user, contact):
-        """ Add new user contact """
+        """Adding new user contact method"""
         user = self.session.query(self.Users).filter_by(name=user).first()
         contact = self.session.query(self.Users).filter_by(name=contact).first()
 
@@ -251,7 +251,7 @@ class Storage:
         self.session.commit()
 
     def remove_contact(self, user, contact):
-        """ Remove contact from users contacts """
+        """Removing contact from users contacts method"""
         user = self.session.query(self.Users).filter_by(name=user).first()
         contact = self.session.query(self.Users).filter_by(name=contact).first()
 
@@ -266,7 +266,7 @@ class Storage:
         self.session.commit()
 
     def message_history(self):
-        """ Get users messages statistics """
+        """Getting users messages statistics method"""
         query = self.session.query(
             self.Users.name,
             self.Users.last_login,

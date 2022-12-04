@@ -7,11 +7,11 @@ sys.path.append(os.path.join(os.getcwd(), '..'))
 
 app_log = logging.getLogger('app')
 
-from mainapp.common.errors import ExceptionsMetaClassError, RequiredMetaClassError, VariableMetaClassError
+from common.errors import ExceptionsMetaClassError, RequiredMetaClassError, VariableMetaClassError
 
 
 class DictChecker:
-    """ Checks class dictionary for functions and parameters exceptions """
+    """Checks class dictionary for functions and parameters exceptions"""
     def __init__(self, class_name, class_dict, extra_params, required_params, class_vars_exception):
         self.class_name = class_name
         self.class_dict = class_dict
@@ -52,7 +52,7 @@ class DictChecker:
 
 
 class ClientVerifier(type):
-    """ Client class verifier """
+    """Client class verifier"""
     def __new__(cls, name, bases, class_dict):
         extra_params = ('accept', 'listen')
         required_params = ('AF_INET', )
@@ -67,7 +67,7 @@ class ClientVerifier(type):
 
 
 class ServerVerifier(type):
-    """ Server class verifier """
+    """Server class verifier"""
     def __new__(cls, name, bases, class_dict):
         extra_params = ('connect', )
         required_params = ('AF_INET', )

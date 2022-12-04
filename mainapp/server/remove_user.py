@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 
 
 class DelUserDialog(QDialog):
-    """ Delete user dialog window class """
+    """Delete user dialog window class"""
     def __init__(self, database, server):
         super().__init__()
         self.db = database
@@ -39,11 +39,11 @@ class DelUserDialog(QDialog):
         self.all_users_fill()
 
     def all_users_fill(self):
-        """ Users fill in the field method """
+        """Users fill in the field method"""
         self.selector.addItems([item[0] for item in self.db.users_list()])
 
     def remove_user(self):
-        """ Delete user handler method """
+        """Delete user handler method"""
         self.db.remove_user(self.selector.currentText())
         if self.selector.currentText() in self.server.clients_names:
             sock = self.server.clients_names[self.selector.currentText()]

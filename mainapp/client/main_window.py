@@ -23,7 +23,7 @@ client_logger = logging.getLogger('client')
 
 
 class ClientMainWindow(QMainWindow):
-    """ Main window class """
+    """Main client window class"""
     def __init__(self, database, transport, keys):
         super().__init__()
 
@@ -65,7 +65,7 @@ class ClientMainWindow(QMainWindow):
         self.show()
 
     def set_disabled_input(self):
-        """ Disable input fields and buttons """
+        """Disable input fields and buttons"""
         self.ui.label_new_message.setText('Для выбора получателя дважды кликните на нем в окне контактов.')
         self.ui.text_message.clear()
         if self.history_model:
@@ -77,7 +77,7 @@ class ClientMainWindow(QMainWindow):
         self.ui.text_message.setDisabled(True)
 
     def history_list_update(self):
-        """ Fill in a messages history """
+        """Fill in a messages history"""
         # -- Get messages sorted by date
         messages_list = sorted(self.database.get_history(self.current_chat), key=lambda item: item[3])
 
@@ -113,12 +113,12 @@ class ClientMainWindow(QMainWindow):
         self.ui.list_messages.scrollToBottom()
 
     def select_active_user(self):
-        """ Method handler of double-clicked contact """
+        """Method handler of double-clicked contact event"""
         self.current_chat = self.ui.list_contacts.currentIndex().data()
         self.set_active_user()
 
     def set_active_user(self):
-        """ Set active chat user method """
+        """Set active chat user method"""
         try:
             self.current_chat_key = self.transport.key_request(
                 self.current_chat)
@@ -147,7 +147,7 @@ class ClientMainWindow(QMainWindow):
         self.history_list_update()
 
     def clients_list_update(self):
-        """ Update contacts list method """
+        """Update contacts list method"""
         contacts_list = self.database.get_contacts()
         self.contacts_model = QStandardItemModel()
         for i in sorted(contacts_list):
@@ -158,7 +158,7 @@ class ClientMainWindow(QMainWindow):
         self.ui.list_contacts.setModel(self.contacts_model)
 
     def add_contact_window(self):
-        """ Add contact method """
+        """Add contact window method"""
         global select_dialog
 
         select_dialog = AddContactDialog(self.transport, self.database)
@@ -166,13 +166,13 @@ class ClientMainWindow(QMainWindow):
         select_dialog.show()
 
     def add_contact_action(self, item):
-        """ Adding contact handler method """
+        """Adding contact handler method"""
         new_contact = item.selector.currentText()
         self.add_contact(new_contact)
         item.close()
 
     def add_contact(self, new_contact):
-        """ Add contact to dbs method """
+        """Add contact to dbs method"""
         try:
             self.transport.add_contact(new_contact)
         except ServerError as err:
@@ -191,7 +191,7 @@ class ClientMainWindow(QMainWindow):
             self.messages.information(self, 'Успех', 'Контакт успешно добавлен.')
 
     def delete_contact_window(self):
-        """ Remove contact method """
+        """Remove contact method"""
         global remove_dialog
 
         remove_dialog = DelContactDialog(self.database)
@@ -199,7 +199,7 @@ class ClientMainWindow(QMainWindow):
         remove_dialog.show()
 
     def delete_contact(self, item):
-        """ Contact remove handler method """
+        """Contact remove handler method"""
         selected = item.selector.currentText()
         try:
             self.transport.remove_contact(selected)
@@ -222,7 +222,7 @@ class ClientMainWindow(QMainWindow):
                 self.set_disabled_input()
 
     def send_message(self):
-        """ Send user message method """
+        """Send user message method"""
         # -- Get message from a textarea and cleans
         message_text = self.ui.text_message.toPlainText()
         self.ui.text_message.clear()
@@ -255,7 +255,9 @@ class ClientMainWindow(QMainWindow):
 
     @pyqtSlot(dict)
     def message(self, message):
-        """ New message receiver slot. Decrypt message. Change current chat if message from other client """
+        """New message receiver slot. Decrypting incoming message.
+        Change current chat if message from other client received
+        """
         # -- Getting bytes string --------------
         encrypted_message = base64.b64decode(message[MESSAGE_TEXT])
 
@@ -303,13 +305,13 @@ class ClientMainWindow(QMainWindow):
 
     @pyqtSlot()
     def connection_lost(self):
-        """ Connection lost slot """
+        """Connection lost slot"""
         self.messages.warning(self, 'Сбой соединения', 'Потеряно соединение с сервером. ')
         self.close()
 
     @pyqtSlot()
     def sig_205(self):
-        """ Updating database by server command slot """
+        """Updating database by server command slot"""
         if self.current_chat and not self.database.check_user(
                 self.current_chat):
             self.messages.warning(
@@ -321,6 +323,7 @@ class ClientMainWindow(QMainWindow):
         self.clients_list_update()
 
     def make_connection(self, trans_obj):
+        """Method to connect a transport signal with main client window slots"""
         trans_obj.new_message.connect(self.message)
         trans_obj.connection_lost.connect(self.connection_lost)
         trans_obj.message_205.connect(self.sig_205)

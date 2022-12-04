@@ -19,7 +19,7 @@ client_log = logging.getLogger('client')
 
 
 def get_server_params(params_list):
-    """ Get server connection parameters """
+    """Getting server connection parameters"""
     try:
         server_address = params_list['ip']
         server_port = int(params_list['port'])
@@ -52,7 +52,7 @@ def get_server_params(params_list):
 
 
 def get_client_data(start_dialog):
-    """ Get clients name and password from UserDialog window """
+    """Getting clients name and password from UserDialog window"""
 
     # -- Show user dialog to enter client_name or exit
     client_app.exec_()
@@ -79,6 +79,7 @@ if __name__ == '__main__':
     client_app = QApplication(sys.argv)
 
     start_dialog = UserNameDialog()
+
     if not client_name:
         client_name, client_passwd = get_client_data(start_dialog)
 

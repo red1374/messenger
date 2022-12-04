@@ -4,15 +4,14 @@ import logging
 
 sys.path.append(os.path.join(os.getcwd(), '..'))
 
-from client.database import ClientDatabase
-from PyQt5.QtWidgets import QDialog, QLabel, QComboBox, QPushButton, QApplication
+from PyQt5.QtWidgets import QDialog, QLabel, QComboBox, QPushButton
 from PyQt5.QtCore import Qt
 
 client_logger = logging.getLogger('client')
 
 
 class AddContactDialog(QDialog):
-    """ Dialog window to select a user for adding to contact list """
+    """Dialog window to select a user for adding to contact list"""
     def __init__(self, transport, database):
         super().__init__()
         self.transport = transport
@@ -50,7 +49,7 @@ class AddContactDialog(QDialog):
         self.btn_refresh.clicked.connect(self.update_possible_contacts)
 
     def possible_contacts_update(self):
-        """ Get possible contacts to add a new one """
+        """Get possible contacts to add a new one"""
         self.selector.clear()
         # -- Get current user contacts ----------------
         contacts_list = set(self.database.get_contacts())
@@ -64,7 +63,7 @@ class AddContactDialog(QDialog):
         self.selector.addItems(users_list - contacts_list)
 
     def update_possible_contacts(self):
-        """ Update known users table and possible contacts list """
+        """Update known users table and possible contacts list"""
         try:
             self.transport.user_list_update()
         except OSError:
@@ -72,4 +71,3 @@ class AddContactDialog(QDialog):
         else:
             client_logger.debug('Users list update is complete')
             self.possible_contacts_update()
-

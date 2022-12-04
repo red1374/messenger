@@ -5,7 +5,7 @@ import binascii
 
 
 class RegisterUser(QDialog):
-    """ Register user dialog window class """""
+    """Register user dialog window class"""
 
     def __init__(self, database, server):
         super().__init__()
@@ -64,7 +64,7 @@ class RegisterUser(QDialog):
         self.show()
 
     def save_data(self):
-        """ Save new user data to database """
+        """Saving new user data to database"""
         if not self.client_name.text():
             self.messages.critical(
                 self, 'Ошибка', 'Не указано имя пользователя.')

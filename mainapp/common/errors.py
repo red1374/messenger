@@ -1,18 +1,8 @@
 """ Custom exception classes """
 
 
-class IncorrectDataRecivedError(Exception):
-    """
-    Исключение  - некорректные данные получены от сокета
-    """
-    def __str__(self):
-        return 'Принято некорректное сообщение от удалённого компьютера.'
-
-
 class NonDictInputError(Exception):
-    """
-    Function parameter isn't a dict
-    """
+    """Function parameter isn't a dict"""
     def __init__(self, parameter):
         self.parameter = parameter
 
@@ -21,9 +11,7 @@ class NonDictInputError(Exception):
 
 
 class ReqFieldMissingError(Exception):
-    """
-    Error - there's no required field at given dict
-    """
+    """Error - there's no required field at a given dict"""
     def __init__(self, missing_field):
         self.missing_field = missing_field
 
@@ -32,7 +20,7 @@ class ReqFieldMissingError(Exception):
 
 
 class ServerError(Exception):
-    """ Server error exception"""
+    """Server error exception"""
     def __init__(self, text):
         self.text = text
 
@@ -44,9 +32,7 @@ class ServerError(Exception):
 
 
 class ExceptionsMetaClassError(Exception):
-    """
-    Parameter or functions error
-    """
+    """Parameter or functions error"""
     def __init__(self, parameter):
         self.parameter = parameter
 
@@ -55,9 +41,7 @@ class ExceptionsMetaClassError(Exception):
 
 
 class RequiredMetaClassError(Exception):
-    """
-    Required parameter or functions error
-    """
+    """Required parameter or functions error"""
     def __init__(self, parameter):
         self.parameter = parameter
 
@@ -66,9 +50,7 @@ class RequiredMetaClassError(Exception):
 
 
 class VariableMetaClassError(Exception):
-    """
-    Variable exception
-    """
+    """Variable exception"""
     def __init__(self, parameter):
         # self.parameter = f'{parameter.name}: <class {parameter.type}>'
         self.parameter = parameter
@@ -81,9 +63,7 @@ class VariableMetaClassError(Exception):
 
 
 class PortValueError(Exception):
-    """
-    Exception for incorrect port value
-    """
+    """Exception for incorrect port value"""
     def __init__(self, parameter):
         self.parameter = parameter
 

@@ -3,7 +3,6 @@ import threading
 import logging
 import select
 import socket
-import json
 import hmac
 import binascii
 import os
@@ -23,6 +22,7 @@ server_log = logging.getLogger('server')
 class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
     listen_port = CheckPort()
 
+    """Class to work with clients messages. Client-server interface"""
     def __init__(self, db, address, port):
         self.listen_address = address
         self.listen_port = port
@@ -32,7 +32,6 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
         self.messages_list = []  # Messages from all clients
 
         self.listen_sockets = None
-        self.error_sockets = None
 
         self.db = db
 
@@ -44,9 +43,10 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
 
     @login_required
     def process_client_message(self, message, client):
-        """
-            Client message processor. Add message to a messages list if it's ok.
-            If it's not - add response dict or close connection with this client
+        """Client message processor. Try to send message from a sender to receiver user if it's ok.
+        Processing service messages: contacts list request, client exit request, adding new contact
+        request, deleting contact request, known users request, public key request.
+        If it's not - return "Bad request" response dict or close connection with this client
         """
 
         server_log.debug(f'Client message processing : {message}')
@@ -55,12 +55,12 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
                 message[ACTION] in \
                 [PRESENCE, MESSAGE, EXIT, GET_CONTACTS, ADD_CONTACT, REMOVE_CONTACT, USERS_REQUEST, PUBLIC_KEY_REQUEST]:
             if message[ACTION] in PRESENCE and USER in message and ACCOUNT_NAME in message[USER]:
-                # -- If this is a presence message authorize user --------------------------------------
-                self.autorize_user(message, client)
+                # -- If this is a presence message authorize user ---------
+                self.authorize_user(message, client)
 
             elif DESTINATION in message and SENDER in message and MESSAGE_TEXT in message \
                     and self.clients_names[message[SENDER]] == client:
-                # -- Add message to a messages list -------------------------------
+                # -- Try to send message to a destination user ------------
                 if message[DESTINATION] in self.clients_names:
                     self.db.process_message(message[SENDER], message[DESTINATION])
                     self.process_message(self, message)
@@ -158,7 +158,7 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
 
             server_log.info(f'Message sent to a user "{message[DESTINATION]}" from user "{message[SENDER]}"')
         elif message[DESTINATION] in self.clients_names and \
-                self.clients_names[message[DESTINATION]] not in listen_socks:
+                self.clients_names[message[DESTINATION]] not in self.listen_sockets:
             # -- There's now socket for DESTINATION account name ----------------------------------------
             server_log.error(
                 f'Connection with client "{message[DESTINATION]}" is lost!')
@@ -166,8 +166,8 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
         else:
             server_log.error(f'There\'s no user with "{message[DESTINATION]}" account name')
 
-    def autorize_user(self, message, sock):
-        """ Authorize user method """
+    def authorize_user(self, message, sock):
+        """Authorize user method"""
 
         server_log.debug(f'Start auth process for {message[USER][ACCOUNT_NAME]}')
         if message[USER][ACCOUNT_NAME] in self.clients_names.keys():
@@ -202,8 +202,8 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
 
             # -- Creating password and random string hash
             # -- Saving public key server version
-            hash = hmac.new(self.db.get_hash(message[USER][ACCOUNT_NAME]), random_str, 'MD5')
-            digest = hash.digest()
+            new_hash = hmac.new(self.db.get_hash(message[USER][ACCOUNT_NAME]), random_str, 'MD5')
+            digest = new_hash.digest()
             server_log.debug(f'Auth message = {message_auth}')
             try:
                 # -- Send it to a client ------------------------------
@@ -216,8 +216,8 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
 
             client_digest = binascii.a2b_base64(answer[DATA])
             # -- If client answer is correct save it to a users list
-            if RESPONSE in answer and answer[RESPONSE] == 511 and hmac.compare_digest(
-                    digest, client_digest):
+            if RESPONSE in answer and answer[RESPONSE] == 511 and \
+                    hmac.compare_digest(digest, client_digest):
                 self.clients_names[message[USER][ACCOUNT_NAME]] = sock
                 client_ip, client_port = sock.getpeername()
                 try:
@@ -242,7 +242,7 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
                 sock.close()
 
     def service_update_lists(self):
-        """ Sends a message with status code 205 to a clients method  """
+        """Sends a message with status code 205 to a clients method"""
         for client in self.clients_names:
             try:
                 send_message(self.clients_names[client], RESPONSE_205)
@@ -250,7 +250,7 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
                 self.remove_client(self.clients_names[client])
 
     def init_socket(self):
-        """ Init server socket method """
+        """Init server socket method"""
         server_log.info(f'Server started at {self.listen_address}:{self.listen_port}')
 
         # -- Prepare socket ----------------------------------------------------
@@ -265,10 +265,20 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
         self.sock = transport
         self.sock.listen(MAX_CONNECTIONS)
 
+    def remove_client(self, client):
+        """Remove client from the client list and form db"""
+        server_log.info(f'Client "{client.getpeername()}" is disconnected')
+        for name in self.clients_names:
+            if self.clients_names[name] == client:
+                self.db.user_logout(name)
+                del self.clients_names[name]
+                break
+        self.clients_list.remove(client)
+        client.close()
+
     def run(self):
-        """
-            Main Thread cycle.
-            Overriding default Thread method "run" and starting it automatically
+        """Main Thread cycle.
+        Overriding default Thread method "run" and starting it automatically
         """
         self.init_socket()
 
@@ -285,12 +295,11 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
                 self.clients_list.append(client_socket)
 
             recv_data_lst = []
-            send_data_lst = []
 
             # -- Checking for a clients that are waiting --------------------------------
             try:
                 if self.clients_list:
-                    recv_data_lst, self.listen_sockets, self.error_sockets = select.select(
+                    recv_data_lst, self.listen_sockets, _ = select.select(
                         self.clients_list, self.clients_list, [], 0)
             except OSError:
                 pass
@@ -303,19 +312,8 @@ class MessageProcessor(threading.Thread, metaclass=ServerVerifier):
                             f'Creating server response message for client {client_with_message.getpeername()}')
                         self.process_client_message(get_message(client_with_message), client_with_message)
                     except ValueError as value_error:
-                        server_log.error(f'Client response message error.')
+                        server_log.error(f'Client response message error: {value_error}.')
                         self.remove_client(client_with_message)
                     except Exception as error:
                         server_log.error(f'Client response message error: {error}.')
                         self.remove_client(client_with_message)
-
-    def remove_client(self, client):
-        """ Remove client from the client list and form db """
-        server_log.info(f'Client "{client.getpeername()}" is disconnected')
-        for name in self.clients_names:
-            if self.clients_names[name] == client:
-                self.db.user_logout(name)
-                del self.clients_names[name]
-                break
-        self.clients_list.remove(client)
-        client.close()

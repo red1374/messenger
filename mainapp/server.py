@@ -22,7 +22,7 @@ server_log = logging.getLogger('server')
 
 @Log
 def config_load():
-    """ Load server settings file """
+    """Load server settings file"""
     config = configparser.ConfigParser()
     dir_path = os.path.dirname(os.path.realpath(__file__))
     config.read(f"{dir_path}/{'server.ini'}")
