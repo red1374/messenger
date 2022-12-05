@@ -21,7 +21,11 @@ class Log:
     def __call__(self, *args, **kwargs):
         """Adding information about called method to a log file"""
         pattern = re.compile('([A-z0-9_-]+).py$')
-        logger_name = re.findall(pattern, sys.argv[0])[0]
+        if not sys.argv or not sys.argv[0]:
+            logger_name = 'app'
+        else:
+            res = re.findall(pattern, sys.argv[0])
+            logger_name = 'app' if not res else res[0]
         parent_func_name = traceback.format_stack()[0].strip().split()[-1]
 
         res = self.func(*args, **kwargs)
